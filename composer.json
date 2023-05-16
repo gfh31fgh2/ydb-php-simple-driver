@@ -1,0 +1,19 @@
+{
+    "require": {
+        "ext-mbstring": "*",
+        "ext-openssl": "*",
+        "ext-json": "*",
+        "ext-pcntl": "*",
+        "guzzlehttp/guzzle": "^7.0",
+        "ydb-platform/ydb-php-sdk": "^1.5",
+        "grpc/grpc": "^1.38"
+    },
+    "autoload": {
+        "psr-4": {
+            "xxxx\\": ""
+        },
+        "files": [
+            "config.php"
+        ]
+    }
+}
