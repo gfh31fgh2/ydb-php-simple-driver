@@ -23,6 +23,11 @@ class TestOne
         $test = $test_arr[0] ?? "";
         var_dump(json_encode($test));
 
+        $specQuery = "SELECT * FROM xxxTable ORDER BY xxx DESC;";
+        $test_2_arr = $this->ydb_v2->select_ydb(null, 'any_table', 'query', null, null, array('query' => $specQuery), null, null, null);
+        $test2 = $test_2_arr[0] ?? "";
+        var_dump(json_encode($test2));
+
         // $this->response = !empty ($this->response) ? $this->response : '{"status":"error", "error":"xxxx", "code":"80"}';
 
         // $data_for_ydb['column1'] = "text1 equal to type of column1 in scheme";

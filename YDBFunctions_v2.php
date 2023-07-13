@@ -173,8 +173,13 @@ class YDBFunctions_v2 {
                 $xxxxValue  = $value;
             }
             $select_result = $this->select_eq($path_table, $nametable, $xxxxColumn, $xxxxValue, $limit, $orderby_arr, $special_index, $need_count);
-        } elseif($operand == 'xxx') {
-           
+        } elseif($operand == 'query') {
+            foreach ($selectdata as $key => $value) {
+                if ($key == 'query') {
+                    $ydb_query = $value;
+                }
+            }
+            $select_result = $this->select_query($path_table, $nametable, $ydb_query);
         }
 
         // Logger::add_msg("INFO: YDBFv2: [". __FUNCTION__ . "]: select_result = " . json_encode($select_result) );
@@ -292,6 +297,101 @@ class YDBFunctions_v2 {
         return $return_data;
     }
     // ========================  END SELECT_EQ  ========================  //
+
+
+    // ========================  SELECT_QUERY  ========================  //
+
+    public function select_query($path, $xxxTable, $xxxQuery) {
+        if (!$xxxTable) {
+            $return_data = [
+                "status"    => "error",
+                "code"      => "110",
+                "msg"       => "xxxTable not isset",
+                "data"      => ""
+            ];
+            // Logger::add_msg("ERR: YDBFv2: [". __FUNCTION__ . "]: xxxTable not isset ");
+            return $return_data;
+        }
+        // Logger::add_msg("INFO: YDBFv2: [". __FUNCTION__ . "]: xxxTable = " . $xxxTable);
+
+        if (!$xxxQuery) {
+            $return_data = [
+                "status"    => "error",
+                "code"      => "111",
+                "msg"       => "xxxQuery not isset",
+                "data"      => ""
+            ];
+            // Logger::add_msg("ERR: YDBFv2: [". __FUNCTION__ . "]: xxxQuery not isset");
+            return $return_data;
+        }
+        // Logger::add_msg("INFO: YDBFv2: [". __FUNCTION__ . "]: xxxQuery = " . json_encode($xxxQuery));
+
+        // Определяем тип переменных
+        $scheme_table_arr = self::nano_scheme_table($xxxTable);
+        $scheme_table  = $scheme_table_arr[0];
+        $indexes_table = $scheme_table_arr[1];
+        // $nanoValueTypeLT = $scheme_table[$nanoValueLT];
+
+        $prepared_query_text = '';
+        $query1 = 'PRAGMA TablePathPrefix(' . '"' . $path . '"' . ');' . "\n";
+        // $query21 = 'DECLARE $nanoValueLT AS ' . $nanoValueTypeLT . ';' . "\n";
+        // $query22 = '';
+
+        // Проверяем, есть ли индекс по этой колонке в нашей схеме
+        // $query31 = 'SELECT * FROM `' . $xxxTable .'`' . ' WHERE `' . $nanoKeyColumn . '` < ' . '$nanoValueLT';
+        $query31 = $xxxQuery;
+
+        $prepared_query_text = $query1 . $query31 ;
+
+        // Logger::add_msg("INFO: YDBFv2: [". __FUNCTION__ . "]: prepared_query_text = " . $prepared_query_text);
+
+        $st = 0;
+        while ($st < 5) {
+            $st = $st + 1;
+            // Logger::add_msg("INFO: YDBFv2: [". __FUNCTION__ . "]: ydb_retry=" . $st );
+            try {
+                $session = self::getYdbSession($st);
+                $prepared_query = $session->prepare($prepared_query_text);
+
+                if ($prepared_query == false) {
+                    // Logger::add_msg("WARN: YDBFv2: [". __FUNCTION__ . "]: ydb_retry_res = false!");
+                } else {
+                    // $res = $session->transaction(function($session) use ($prepared_query){
+                    //     return $prepared_query->execute();
+                    // });
+
+                    $res = self::getYDB()->table()->retryTransaction(function($session) use ($prepared_query){
+                        return $prepared_query->execute();
+                    }, false);
+
+                    // Logger::add_msg("INFO: YDBFv2: [". __FUNCTION__ . "]: result_ydb_with_retry_m1 = " . json_encode($res));
+                    $return_data = [
+                        "status" => "success",
+                        "code"   => "100",
+                        "msg"    => "ok",
+                        "conn"   => self::$session_info,
+                        "data"   => $res->rows()
+                    ];
+                    $st = 20;
+                }
+
+            } catch (\Exception $e) {
+                // Logger::add_msg("INFO: YDBFv2: [". __FUNCTION__ . "]: Error, catch: " . $e->getMessage() );
+                sleep(1);
+                $return_data = [
+                    "status"    => "error",
+                    "code"      => "105", 
+                    "msg"       => "error with ydb",
+                    "moreinfo"  => $e->getMessage(),
+                    "data"      => ""
+                ];
+            }
+        }
+
+        return $return_data;
+
+    }
+    // ========================  END SELECT_QUERY  ========================  //
 
 
 
