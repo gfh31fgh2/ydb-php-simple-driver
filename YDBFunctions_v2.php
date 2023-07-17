@@ -20,11 +20,20 @@ class YDBFunctions_v2 {
         return self::$_instance;
     }
 
-    public static function getYDB()
+    public static function getYDB($newone = false)
     {
-        if (!self::$_ydb) {
-            self::$_ydb = self::getInstance()->connectYDB();
+        // Если требуется новый коннект
+        if ($newone) {
+            // Logger::add_msg("INFO: YDBFv2: [" . __FUNCTION__ . "]: newone true ");
+            self::$_ydb = self::getInstance()->connectYDB(true);
+        } else {
+            if (!self::$_ydb) {
+                self::$_ydb = self::getInstance()->connectYDB();
+            } else {
+                // Logger::add_msg("INFO: YDBFv2: [" . __FUNCTION__ . "]: Already have ydb_instance ");
+            }
         }
+
         return self::$_ydb;
     }
 
@@ -32,9 +41,9 @@ class YDBFunctions_v2 {
     {
         if ($ydb_retry > 2) {
             // Logger::add_msg("INFO: YDBFv2: [" . __FUNCTION__ . "]: getYdbSession_ydb_retry > 2 and = " . $ydb_retry);
-            $token_update = self::getYDB()->token();
+            // $token_update = self::getYDB()->token();
             // Logger::add_msg("INFO: YDBFv2: [". __FUNCTION__ . "]: ydb_update_token = " . json_encode($token_update) );
-            self::$_ydbsession = self::getYDB()->table()->session();
+            self::$_ydbsession = self::getYDB(true)->table()->session();
             self::$session_info = "new conn";
 
         } else {
