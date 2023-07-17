@@ -65,7 +65,7 @@ class YDBFunctions_v2 {
         return;
     }
 
-    public function connectYDB()
+    public function connectYDB($newone = false)
     {
         $config_db          = CONFIG_YDB_DATABASE;
         $config_endpoint    = CONFIG_YDB_ENDPOINT;
@@ -88,18 +88,31 @@ class YDBFunctions_v2 {
 
 
         $already = false;
-        if ( is_null(self::$_ydb)) {
+
+        if ($newone) {
+            // Logger::add_msg("INFO: YDBFv2: [" . __FUNCTION__ . "]: newone true ");
             try {
                 // self::$_ydb = new Ydb($config, new Logg());
                 self::$_ydb = new Ydb($config);
                 // Logger::add_msg("INFO: YDBFv2: [" . __FUNCTION__ . "]: New connection!");
             } catch (\Exception $e) {
                 // Logger::add_msg("ERR: YDBFv2: [". __FUNCTION__ . "]: Error, catch: " . $e->getMessage() );
-                sleep(1);
+                sleep(2);
             }
         } else {
-            // Logger::add_msg("INFO: YDBFv2: [". __FUNCTION__ . "]: Already connection!");
-            $already = true;
+            if ( is_null(self::$_ydb)) {
+                try {
+                    // self::$_ydb = new Ydb($config, new Logg());
+                    self::$_ydb = new Ydb($config);
+                    // Logger::add_msg("INFO: YDBFv2: [" . __FUNCTION__ . "]: New connection!");
+                } catch (\Exception $e) {
+                    // Logger::add_msg("ERR: YDBFv2: [". __FUNCTION__ . "]: Error, catch: " . $e->getMessage() );
+                    sleep(2);
+                }
+            } else {
+                // Logger::add_msg("INFO: YDBFv2: [". __FUNCTION__ . "]: Already connection!");
+                $already = true;
+            }
         }
         return self::$_ydb;
     }
