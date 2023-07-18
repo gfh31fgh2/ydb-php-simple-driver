@@ -117,6 +117,83 @@ class YDBFunctions_v2 {
         return self::$_ydb;
     }
 
+    public static function checkRes($comeres, $stat_mess = 'success', $stat_code = '100', $stat_msg = 'error with ydb')
+    {
+        if ($stat_mess == 'success') {
+            // Logger::add_msg("INFO: YDBFv2: [". __FUNCTION__ . "]: result_ydb_with_retry_m5 = " . json_encode($comeres));
+            $data = $comeres->rows();
+            $more = '';
+        } else {
+            $data = '';
+            if (!$comeres) {
+                $more = 'nothing';
+            } else {
+                $more = $comeres->getMessage();
+            }
+        }
+
+        $return_data = [
+            "status"    => $stat_mess,
+            "code"      => $stat_code, 
+            "msg"       => $stat_msg,
+            "moreinfo"  => $more,
+            "conn"      => self::$session_info,
+            "data"      => $data
+        ];
+
+        return $return_data;
+    }
+
+    public static function execYdbFunc($prep_query_text, $exArr, $code_num = '001')
+    {
+        $prepared_query_text = $prep_query_text;
+        $st = 0;
+        while ($st < 5) {
+            $st = $st + 1;
+            // Logger::add_msg("INFO: YDBFv2: [". __FUNCTION__ . "]: ydb_retry_m5=" . $st );
+
+            // begin try_catch
+            try {
+                // $session = self::getYDB()->table()->session();
+                $session = self::getYdbSession($st);
+
+                $res = self::getYDB()->table()->retryTransaction(function($session) use ($exArr, $prepared_query_text){
+                    // Logger::add_msg("INFO: YDBFv2: [". __FUNCTION__ . "]: preparing_m5");
+                    $prepared_query = $session->prepare($prepared_query_text);
+                    // Logger::add_msg("INFO: YDBFv2: [". __FUNCTION__ . "]: prepared_m5");
+
+                    if ($prepared_query == false) {
+                        // Logger::add_msg("ERR: YDBFv2: [". __FUNCTION__ . "]: prepared_query_m5 = false!");
+                        return false;
+                    } else {
+                        // Logger::add_msg("INFO: YDBFv2: [". __FUNCTION__ . "]: prepared_query_m5 = true");
+                        if ( is_array($exArr) ) {
+                            return $prepared_query->execute($exArr);
+                        } else {
+                            return $prepared_query->execute();
+                        }
+                    }
+
+                }, false);
+
+                if ($res) {
+                    $return_data = self::checkRes($res, 'success', '100', 'ok');
+                    $st = 20;
+                } else {
+                    // Logger::add_msg("ERR: YDBFv2: [". __FUNCTION__ . "]: result_ydb_with_retry_m5 = false");
+                }
+
+            } catch (\Exception $e) {
+                // Logger::add_msg("ERR: YDBFv2: [". __FUNCTION__ . "]: Error, catch: " . $e->getMessage() );
+                sleep(1);
+                $return_data = self::checkRes($e, 'error', $code_num, 'error with ydb');
+            }
+            // end try_catch
+        }
+
+        return $return_data;
+    }
+
     public function helperForTypes($type = null, $value = null)
     {
         if ($type == 'Utf8') {
@@ -278,43 +355,10 @@ class YDBFunctions_v2 {
 
         // Logger::add_msg("INFO: YDBFv2: [". __FUNCTION__ . "]: prepared_query_text = " . $prepared_query_text);
 
-        $st = 0;
-        while ($st < 5) {
-            $st = $st + 1;
-            // Logger::add_msg("INFO: YDBFv2: [". __FUNCTION__ . "]: ydb_retry=" . $st );
-
-            try {
-                // $session = self::getYDB()->table()->session();
-                $session = self::getYdbSession($st);
-                $prepared_query = $session->prepare($prepared_query_text);
-
-                $res = $session->transaction(function($session) use ($xxxxValue, $prepared_query){
-                    return $prepared_query->execute([
-                        'xxxxValue' => $xxxxValue,
-                    ]);
-                });
-
-                // Logger::add_msg("INFO: YDBFv2: [". __FUNCTION__ . "]: result_ydb = " . json_encode($res));
-                $return_data = [
-                    "status" => "success",
-                    "code"   => "100",
-                    "msg"    => "ok",
-                    "conn"   => self::$session_info,
-                    "data"   => $res->rows()
-                ];
-                $st = 20;
-            } catch (\Exception $e) {
-                // Logger::add_msg("INFO: YDBFv2: [". __FUNCTION__ . "]: Error, catch: " . $e->getMessage() );
-                sleep(1);
-                $return_data = [
-                    "status"    => "error",
-                    "code"      => "101", 
-                    "msg"       => "error with ydb",
-                    "moreinfo"  => $e->getMessage(),
-                    "data"      => ""
-                ];
-            }
-        }
+        $execArr = [
+            'xxxxValue' => $xxxxValue
+        ];
+        $return_data = self::execYdbFunc($prepared_query_text, $execArr, '101');
 
         return $return_data;
     }
@@ -349,66 +393,25 @@ class YDBFunctions_v2 {
         // Logger::add_msg("INFO: YDBFv2: [". __FUNCTION__ . "]: xxxQuery = " . json_encode($xxxQuery));
 
         // Определяем тип переменных
-        $scheme_table_arr = self::nano_scheme_table($xxxTable);
+        $scheme_table_arr = self::xxxx_scheme_table($xxxTable);
         $scheme_table  = $scheme_table_arr[0];
         $indexes_table = $scheme_table_arr[1];
-        // $nanoValueTypeLT = $scheme_table[$nanoValueLT];
 
         $prepared_query_text = '';
         $query1 = 'PRAGMA TablePathPrefix(' . '"' . $path . '"' . ');' . "\n";
-        // $query21 = 'DECLARE $nanoValueLT AS ' . $nanoValueTypeLT . ';' . "\n";
+        // $query21 = 'DECLARE $xxx AS ' . $xxx . ';' . "\n";
         // $query22 = '';
 
         // Проверяем, есть ли индекс по этой колонке в нашей схеме
-        // $query31 = 'SELECT * FROM `' . $xxxTable .'`' . ' WHERE `' . $nanoKeyColumn . '` < ' . '$nanoValueLT';
+        // $query31 = 'SELECT * FROM `' . $xxxTable .'`' . ' WHERE `' . $xxx . '` < ' . '$xxx';
         $query31 = $xxxQuery;
 
         $prepared_query_text = $query1 . $query31 ;
 
         // Logger::add_msg("INFO: YDBFv2: [". __FUNCTION__ . "]: prepared_query_text = " . $prepared_query_text);
 
-        $st = 0;
-        while ($st < 5) {
-            $st = $st + 1;
-            // Logger::add_msg("INFO: YDBFv2: [". __FUNCTION__ . "]: ydb_retry=" . $st );
-            try {
-                $session = self::getYdbSession($st);
-                $prepared_query = $session->prepare($prepared_query_text);
-
-                if ($prepared_query == false) {
-                    // Logger::add_msg("WARN: YDBFv2: [". __FUNCTION__ . "]: ydb_retry_res = false!");
-                } else {
-                    // $res = $session->transaction(function($session) use ($prepared_query){
-                    //     return $prepared_query->execute();
-                    // });
-
-                    $res = self::getYDB()->table()->retryTransaction(function($session) use ($prepared_query){
-                        return $prepared_query->execute();
-                    }, false);
-
-                    // Logger::add_msg("INFO: YDBFv2: [". __FUNCTION__ . "]: result_ydb_with_retry_m1 = " . json_encode($res));
-                    $return_data = [
-                        "status" => "success",
-                        "code"   => "100",
-                        "msg"    => "ok",
-                        "conn"   => self::$session_info,
-                        "data"   => $res->rows()
-                    ];
-                    $st = 20;
-                }
-
-            } catch (\Exception $e) {
-                // Logger::add_msg("INFO: YDBFv2: [". __FUNCTION__ . "]: Error, catch: " . $e->getMessage() );
-                sleep(1);
-                $return_data = [
-                    "status"    => "error",
-                    "code"      => "105", 
-                    "msg"       => "error with ydb",
-                    "moreinfo"  => $e->getMessage(),
-                    "data"      => ""
-                ];
-            }
-        }
+        $execArr = '';
+        $return_data = self::execYdbFunc($prepared_query_text, $execArr, '106');
 
         return $return_data;
 
@@ -537,46 +540,10 @@ class YDBFunctions_v2 {
 
         // Logger::add_msg("INFO: YDBFv2: [". __FUNCTION__ . "]: prepared_query_text = " . $prepared_query_text);
 
-        $st = 0;
-        while ($st < 5) {
-            $st = $st + 1;
-            // Logger::add_msg("INFO: YDBFv2: [". __FUNCTION__ . "]: ydb_retry=" . $st );
-
-            try {
-                // проблемы с этим
-                $session = self::getYDB()->table()->session();
-
-                // а это возможно исправит косяки sdk:
-                // $session = self::getYdbSession($st);
-
-                $prepared_query = $session->prepare($prepared_query_text);
-
-                $res = $session->transaction(function($session) use ($rowData, $prepared_query){
-                    return $prepared_query->execute([
-                        'rowData' => $rowData,
-                    ]);
-                });
-
-                // Logger::add_msg("INFO: YDBFv2: [". __FUNCTION__ . "]: result_ydb = " . json_encode($res));
-                $return_data = [
-                    "status" => "success",
-                    "code"   => "100",
-                    "msg"    => "ok",
-                    "conn"   => self::$session_info,
-                    "data"   => $res->rows()
-                ];
-                $st = 20;
-            } catch (\Exception $e) {
-                // Logger::add_msg("INFO: YDBFv2: [". __FUNCTION__ . "]: Error, catch: " . $e->getMessage() );
-                $return_data = [
-                    "status"    => "error",
-                    "code"      => "112", 
-                    "msg"       => "error with ydb",
-                    "moreinfo"  => $e->getMessage(),
-                    "data"      => ""
-                ];
-            }
-        }
+        $execArr = [
+            'rowData' => $rowData
+        ];
+        $return_data = self::execYdbFunc($prepared_query_text, $execArr, '112');
 
         return $return_data;
 
